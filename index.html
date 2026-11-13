@@ -108,6 +108,14 @@
     opacity:0; transition:opacity .2s; pointer-events:none; z-index:20}
   .toast.show{opacity:1}
   .muted{color:var(--sub); font-size:12px; text-align:center; margin-top:18px}
+  .card.setup{border:2px solid var(--accent)} .card.setup p{font-size:14px; line-height:1.6; color:var(--sub); margin:6px 0 12px}
+  .menu{display:flex; flex-direction:column; gap:8px; margin-bottom:10px}
+  .menu button{text-align:left; border:1.5px solid var(--line); background:transparent; color:var(--ink); font:inherit; font-size:15px; font-weight:700; padding:12px 14px; border-radius:14px; cursor:pointer}
+  .menu button small{display:block; font-size:12px; font-weight:500; color:var(--sub); margin-top:2px}
+  .rlist{display:flex; flex-direction:column; gap:6px}
+  .ritem{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 12px; border:1.5px solid var(--line); border-radius:12px; cursor:pointer}
+  .ritem b{font-size:14.5px} .ritem small{display:block; font-size:12px; color:var(--sub); margin-top:2px; word-break:break-all}
+  .ritem.off{opacity:.5}
   .src.c-kb{background:var(--kb); color:#3b2a00} .src.c-toss{background:var(--toss)} .src.c-kakao{background:#FEE500; color:#3a1d1d}
   .src.c-kbank{background:#1e2a6b} .src.c-naver{background:#03C75A} .src.c-etc{background:#6B7F74}
   .fixbar{display:block; width:100%; text-align:left; border:0; font:inherit; cursor:pointer}
@@ -140,7 +148,10 @@
 <div class="sheet" id="sheet"></div>
 <div class="toast" id="toast"></div>
 
+<script src="core.js"></script>
+<script src="local.js"></script>
 <script>
+const NATIVE = !!(window.Android && window.Android.drain);
 const $ = (s) => document.querySelector(s);
 const won = (n) => (n < 0 ? '-' : '') + Math.abs(Math.round(n)).toLocaleString('ko-KR');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -175,6 +186,7 @@ function toast(msg) {
 }
 
 async function api(body) {
+  if (NATIVE) return Local.api(body);
   const res = await fetch(state.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(Object.assign({ token: state.token }, body)) });
   const j = await res.json();
@@ -183,6 +195,17 @@ async function api(body) {
 }
 
 async function load(cycle) {
+  if (NATIVE) {
+    try {
+      Local.drainNative();
+      state.data = Local.summary(cycle || null);
+      state.cycle = state.data.isCurrent ? null : state.data.focusKey;
+      render();
+      if (!state.data.settings.설정완료 && !state.wizardShown) { state.wizardShown = true; openWizard(true); }
+    } catch (e) { $('#app').innerHTML = `<div class="notice">문제가 생겼어: ${esc(e.message)}</div>`; }
+    if (!state.fxTried) { state.fxTried = true; Local.refreshFx().then(() => { if (!state.loading) { state.data = Local.summary(state.cycle); render(); } }); }
+    return;
+  }
   if (!state.url || !state.token) { renderConnect(); return; }
   state.loading = true; $('#refreshBtn').classList.add('spin');
   const cacheKey = 'manna.cache.' + (cycle || 'now');
@@ -231,6 +254,16 @@ function render() {
     <button class="icon-btn" data-nav="1" aria-label="다음 사이클" ${d.isCurrent ? 'style="visibility:hidden"' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button>
   </div>`;
 
+  if (NATIVE && d.isCurrent) {
+    const lOn = window.Android.listenerEnabled(), bOn = window.Android.batteryOk();
+    if (!lOn) h += `<section class="card setup"><div class="label"><span>① 알림 읽기 켜기</span></div>
+      <p>카드·은행 알림을 읽어야 저절로 기록돼. 버튼을 누르고 <b>만나장부</b>를 켜줘. 알림 내용은 이 폰 밖으로 나가지 않아.</p>
+      <button class="btn" id="btnListener">알림 읽기 켜러 가기</button></section>`;
+    else if (!bOn) h += `<section class="card setup"><div class="label"><span>② 잠들지 않게 하기</span></div>
+      <p>폰이 배터리를 아끼려고 만나장부를 재우면 알림을 놓칠 수 있어. <b>허용</b>을 눌러줘.</p>
+      <button class="btn" id="btnBattery">배터리 절전에서 빼기</button></section>`;
+  }
+
   if (d.unparsed && d.unparsed.length && d.isCurrent) {
     h += `<button class="notice fixbar" id="openUnparsed">놓친 알림 <b>${d.unparsed.length}건</b>이 있어. 눌러서 직접 기록하면, 다음부터는 자동으로 알아볼게 →</button>`;
   }
@@ -254,7 +287,7 @@ function render() {
     <div class="row"><span>${esc(incomeName)}</span><b class="plus">+${won(P.income)}원</b></div>
     ${P.salaryFixedSum ? `<div class="row"><span>${esc(incomeName)}에서 나가는 고정지출</span><span>-${won(P.salaryFixedSum)}원</span></div>` : ''}
     ${(d.salaryFixed || []).map(f => `<div class="row" style="font-size:12.5px;padding:2px 0"><span>&nbsp;&nbsp;└ ${esc(f.name)}</span><span>${won(f.amount)}</span></div>`).join('')}
-    ${P.parentPays ? '' : `<div class="row"><span>카드 고정비·할부</span><span>-${won(P.cardFixed)}원</span></div>`}
+    ${P.parentPays || !P.cardFixed ? '' : `<div class="row"><span>카드 고정비·할부</span><span>-${won(P.cardFixed)}원</span></div>`}
     <div class="divider"></div>
     <div class="row"><span>생활에 쓸 수 있는 내 돈</span><b>${won(P.mine)}원</b></div>
     <div class="row"><span>계좌·페이로 쓴 생활비</span><span>-${won(P.tossNet)}원</span></div>
@@ -303,7 +336,7 @@ function render() {
     if (state.filter === '고정·할부') return t.cls === '고정' || t.cls === '할부';
     return t.cls === '이동' || t.cls === '수입' || t.cls === '제외';
   });
-  if (!list.length) h += `<div class="empty">아직 내역이 없어.<br>결제 알림이 오면 자동으로 쌓여!</div>`;
+  if (!list.length) h += `<div class="empty">아직 내역이 없어.<br>결제 알림이 오면 자동으로 쌓여!${NATIVE ? '<br><small>(알림이 온 뒤 앱을 열면 정리돼)</small>' : ''}</div>`;
   let lastDay = '';
   for (const t of list) {
     const day = t.time.slice(0, 10);
@@ -330,13 +363,16 @@ function render() {
       bals.map(b => `<div class="row"><span>${esc(b.source === 'TOSS' ? '토스뱅크' : b.source)}</span><span>${won(b.balance)}원 <small style="color:var(--sub)">${esc(b.time.slice(5))}</small></span></div>`).join('') +
       `</section>`;
   }
-  h += `<div class="muted">환율 1$ = ${d.fx.usdkrw ? won(d.fx.usdkrw) : '?'}원 · 업데이트 ${esc(d.now)}</div>`;
+  h += `<div class="muted">환율 1$ = ${d.fx.usdkrw ? won(d.fx.usdkrw) : '?'}원 · 업데이트 ${esc(d.now)}${NATIVE ? ' · 이 폰에만 저장됨' : ''}</div>`;
 
   $('#app').innerHTML = h;
   const ub = $('#openUnparsed'); if (ub) ub.onclick = () => openUnparsed(0);
+  const bl = $('#btnListener'); if (bl) bl.onclick = () => window.Android.openListenerSettings();
+  const bb = $('#btnBattery'); if (bb) bb.onclick = () => window.Android.openBatterySettings();
 }
 
 function openSheet(html) {
+  $('#sheet').onclick = null;
   $('#sheet').innerHTML = html; $('#sheet').classList.add('open'); $('#sheetBg').classList.add('open');
   $('#sheet').scrollTop = 0;
 }
@@ -462,6 +498,7 @@ function renderConnect() {
 }
 
 function openSettings() {
+  if (NATIVE) { openNativeSettings(); return; }
   openSheet(`<h3>설정</h3>
     ${state.data ? `<button class="btn" id="toWizard" style="margin-bottom:16px">내 수입·예산·카드 설정 바꾸기</button>` : ''}
     <p>연결 정보 (이 기기에만 저장돼)</p>
@@ -476,6 +513,102 @@ function openSettings() {
   };
 }
 
+
+// ── 앱 모드 전용: 설정, 카드·은행 목록, 고정지출, 백업
+function openNativeSettings() {
+  const v = window.Android.version ? window.Android.version() : '';
+  openSheet(`<h3>설정</h3>
+    <div class="menu">
+      <button data-go="wizard">내 수입·예산·카드 설정<small>이름, 수입, 생활비 목표, 결제일</small></button>
+      <button data-go="fixed">고정지출 목록<small>구독·통신비·헌금처럼 매달 나가는 돈</small></button>
+      <button data-go="rules">카드·은행 목록<small>어떤 알림을 읽을지 직접 고치기</small></button>
+      <button data-go="listener">알림 읽기 권한<small>${window.Android.listenerEnabled() ? '켜져 있음 ✅' : '꺼져 있음 — 눌러서 켜기'}</small></button>
+      <button data-go="battery">배터리 절전 예외<small>${window.Android.batteryOk() ? '설정됨 ✅' : '설정 안 됨 — 눌러서 허용'}</small></button>
+      <button data-go="export">백업 파일 저장<small>폰을 바꾸거나 잃어버릴 때를 대비해 가끔 저장해줘</small></button>
+      <button data-go="import">백업 불러오기<small>저장해 둔 백업 파일로 되돌리기</small></button>
+    </div>
+    <p class="muted">만나장부 ${esc(v)} · 모든 기록은 이 폰 안에만 저장돼</p>`);
+  $('.menu').onclick = (e) => {
+    const b = e.target.closest('[data-go]'); if (!b) return;
+    const g = b.dataset.go;
+    if (g === 'wizard') openWizard(false);
+    else if (g === 'fixed') openFixedList();
+    else if (g === 'rules') openRules();
+    else if (g === 'listener') window.Android.openListenerSettings();
+    else if (g === 'battery') window.Android.openBatterySettings();
+    else if (g === 'export') { const d = new Date(); window.Android.exportBackup(Local.exportJson(), `manna-backup-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.json`); }
+    else if (g === 'import') window.Android.importBackup();
+  };
+}
+
+const KINDS = ['신용카드', '체크카드', '은행·페이', '은행 문자'];
+const plainWord = (w) => String(w || '').replace(/\\d\{4\}/g, '0000').replace(/\\/g, '').split('|').join(' 또는 ');
+function openRules() {
+  const rules = state.data.rules || [];
+  openSheet(`<h3>카드·은행 목록</h3>
+    <p>위에 있는 줄이 먼저 적용돼. 안 쓰는 건 꺼도 되고, 켜둬도 문제없어.</p>
+    <button class="btn" data-ri="-1" style="margin-bottom:10px">+ 새로 추가</button>
+    <div class="rlist">${rules.map((r, i) => `<div class="ritem ${r.active ? '' : 'off'}" data-ri="${i}">
+      <div><b>${esc(r.name)}</b><small>${esc(r.kind)} · ${esc(r.app || '아무 앱')}${r.word ? ' · "' + esc(plainWord(r.word)) + '"' : ''}</small></div>
+      <span class="pill">${r.active ? '켜짐' : '꺼짐'}</span></div>`).join('')}</div>`);
+  $('#sheet').onclick = (e) => { const it = e.target.closest('[data-ri]'); if (it) editRule(+it.dataset.ri); };
+}
+function editRule(i) {
+  const r = i >= 0 ? state.data.rules[i] : { name: '', kind: '신용카드', app: '메시지', word: '', active: true };
+  $('#sheet').onclick = null;
+  openSheet(`<h3>${i >= 0 ? '고치기' : '새로 추가'}</h3>
+    <label class="of">이름 (앱에 보일 이름)</label><input id="rName" value="${esc(r.name)}" placeholder="예: 신한체크">
+    <label class="of">종류</label><div class="seg" id="rKind">${KINDS.map((k) => `<button data-k="${k}" class="${r.kind === k ? 'on' : ''}">${k}</button>`).join('')}</div>
+    <label class="of">알림을 보내는 앱 이름 (문자는 "메시지", 비우면 아무 앱)</label><input id="rApp" value="${esc(r.app)}">
+    <label class="of">알림 속에 늘 들어 있는 단어 (여러 개는 | 로 구분)</label><input id="rWord" value="${esc(r.word)}" placeholder="예: 신한체크">
+    <label class="learn"><input type="checkbox" id="rOn" ${r.active ? 'checked' : ''}> 사용하기</label>
+    <button class="btn" id="rSave">저장</button>
+    ${i >= 0 ? '<button class="btn ghost" id="rDel">이 줄 지우기</button>' : ''}`);
+  let kind = r.kind;
+  $('#rKind').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; kind = b.dataset.k; [...$('#rKind').children].forEach((x) => x.classList.toggle('on', x === b)); };
+  $('#rSave').onclick = async () => { try { await api({ action: 'saveRule', index: i, rule: { name: $('#rName').value, kind, app: $('#rApp').value, word: $('#rWord').value, active: $('#rOn').checked } }); toast('저장했어'); state.data = Local.summary(state.cycle); openRules(); } catch (e) { toast(e.message); } };
+  const del = $('#rDel'); if (del) del.onclick = async () => { await api({ action: 'deleteRule', index: i }); state.data = Local.summary(state.cycle); openRules(); };
+}
+
+function openFixedList() {
+  const list = state.data.fixedList || [];
+  const inc = (state.data.settings || {}).수입이름 || '월수입';
+  openSheet(`<h3>고정지출 목록</h3>
+    <p>매달 나가는 돈을 적어두면, 아직 안 나갔어도 미리 계산에 넣어줘.</p>
+    <button class="btn" data-fi="-1" style="margin-bottom:10px">+ 새로 추가</button>
+    <div class="rlist">${list.length ? list.map((f, i) => `<div class="ritem ${f.active ? '' : 'off'}" data-fi="${i}">
+      <div><b>${esc(f.name)}</b><small>${f.source === '수입' ? esc(inc) + '에서 나감' : '카드로 나감'}${f.keyword ? ' · "' + esc(f.keyword) + '"' : ''}</small></div>
+      <span>${won(f.amount)}원</span></div>`).join('') : '<div class="empty">아직 없어</div>'}</div>`);
+  $('#sheet').onclick = (e) => { const it = e.target.closest('[data-fi]'); if (it) editFixed(+it.dataset.fi); };
+}
+function editFixed(i) {
+  const f = i >= 0 ? state.data.fixedList[i] : { name: '', keyword: '', amount: '', source: '카드', active: true };
+  const inc = (state.data.settings || {}).수입이름 || '월수입';
+  $('#sheet').onclick = null;
+  openSheet(`<h3>${i >= 0 ? '고치기' : '고정지출 추가'}</h3>
+    <label class="of">이름</label><input id="xName" value="${esc(f.name)}" placeholder="예: 통신비, 넷플릭스, 십일조">
+    <label class="of">한 달 금액(원)</label><input id="xAmt" inputmode="numeric" value="${f.amount}">
+    <label class="of">어디서 나가?</label><div class="seg" id="xSrc">
+      <button data-s="카드" class="${f.source !== '수입' ? 'on' : ''}">카드로 결제</button><button data-s="수입" class="${f.source === '수입' ? 'on' : ''}">${esc(inc)}에서 바로</button></div>
+    <label class="of">알림 속 가맹점·받는 사람 이름 (선택 — 이걸 적으면 그 결제를 자동으로 '고정'으로 분류해)</label><input id="xKw" value="${esc(f.keyword)}" placeholder="예: KT, 넷플릭스, 오목사님">
+    <label class="learn"><input type="checkbox" id="xOn" ${f.active ? 'checked' : ''}> 사용하기</label>
+    <button class="btn" id="xSave">저장</button>
+    ${i >= 0 ? '<button class="btn ghost" id="xDel">지우기</button>' : ''}`);
+  let src = f.source === '수입' ? '수입' : '카드';
+  $('#xSrc').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; src = b.dataset.s; [...$('#xSrc').children].forEach((x) => x.classList.toggle('on', x === b)); };
+  $('#xSave').onclick = async () => { try { await api({ action: 'saveFixed', index: i, fixed: { name: $('#xName').value, amount: $('#xAmt').value, source: src, keyword: escapeRe($('#xKw').value.trim()), active: $('#xOn').checked } }); toast('저장했어'); state.data = Local.summary(state.cycle); render(); openFixedList(); } catch (e) { toast(e.message); } };
+  const del = $('#xDel'); if (del) del.onclick = async () => { await api({ action: 'deleteFixed', index: i }); state.data = Local.summary(state.cycle); render(); openFixedList(); };
+}
+
+window.onNativeNew = () => { if (!$('#sheet').classList.contains('open')) load(state.cycle); };
+window.onNativeResume = () => load(state.cycle);
+window.onNativeToast = (m) => toast(m);
+window.onNativeBack = () => { if ($('#sheet').classList.contains('open')) { closeSheet(); return true; } return false; };
+window.onBackupLoaded = (text) => {
+  try { Local.restore(text); toast('백업을 불러왔어'); closeSheet(); state.data = null; load(); }
+  catch (e) { toast(e.message); }
+};
+
 document.addEventListener('click', (e) => {
   const nav = e.target.closest('[data-nav]');
   if (nav && state.data) { load(addMonths(state.data.focusKey, +nav.dataset.nav)); return; }
@@ -489,9 +622,9 @@ document.addEventListener('click', (e) => {
 $('#sheetBg').onclick = closeSheet;
 $('#settingsBtn').onclick = openSettings;
 $('#refreshBtn').onclick = () => load(state.cycle);
-document.addEventListener('visibilitychange', () => { if (!document.hidden && !state.loading) load(state.cycle); });
+document.addEventListener('visibilitychange', () => { if (!NATIVE && !document.hidden && !state.loading) load(state.cycle); });
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+if (!NATIVE && 'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 load();
 </script>
 </body>
