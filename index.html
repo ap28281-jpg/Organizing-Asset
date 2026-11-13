@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2F5D4A">
+<title>만나장부</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+  :root{
+    --bg:#F5F2EC; --card:#FFFFFF; --ink:#1E2420; --sub:#6B716C; --line:#E7E2D9;
+    --accent:#2F5D4A; --accent-soft:#E3EDE7; --warn:#B4532F; --warn-soft:#F8E7DF;
+    --plus:#2E7A57; --minus:#1E2420; --kb:#F4B400; --toss:#3182F6; --bar:#E9E4DA;
+    --radius:20px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#121513; --card:#1B201D; --ink:#EEF1EE; --sub:#9AA19C; --line:#2A302C;
+      --accent:#7FC2A0; --accent-soft:#213229; --warn:#F0916C; --warn-soft:#3A241B;
+      --plus:#7FD1A6; --minus:#EEF1EE; --bar:#2A302C; }
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Pretendard Variable",Pretendard,-apple-system,system-ui,sans-serif;
+    font-feature-settings:"tnum"; letter-spacing:-0.01em}
+  .wrap{max-width:480px; margin:0 auto; padding:calc(env(safe-area-inset-top) + 14px) 16px 100px}
+  header{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px}
+  h1{font-size:20px; font-weight:800; margin:0; letter-spacing:-0.03em}
+  h1 small{font-size:12px; font-weight:500; color:var(--sub); margin-left:6px}
+  .icon-btn{border:0; background:transparent; color:var(--ink); width:40px; height:40px;
+    border-radius:12px; display:grid; place-items:center; cursor:pointer}
+  .icon-btn:active{background:var(--line)}
+  .icon-btn svg{width:22px; height:22px}
+  .spin svg{animation:spin 1s linear infinite} @keyframes spin{to{transform:rotate(360deg)}}
+
+  .cycle{display:flex; align-items:center; justify-content:space-between; margin:4px 0 14px}
+  .cycle .mid{text-align:center}
+  .cycle .mid b{display:block; font-size:16px}
+  .cycle .mid span{font-size:12.5px; color:var(--sub)}
+
+  .card{background:var(--card); border-radius:var(--radius); padding:18px; margin-bottom:12px;
+    box-shadow:0 1px 0 rgba(0,0,0,.03)}
+  .label{font-size:13px; color:var(--sub); font-weight:600; display:flex; justify-content:space-between}
+  .big{font-size:32px; font-weight:800; letter-spacing:-0.03em; margin:6px 0 2px}
+  .big.over{color:var(--warn)}
+  .big small{font-size:16px; font-weight:700; margin-left:2px}
+  .of{font-size:13px; color:var(--sub)}
+  .bar{height:10px; background:var(--bar); border-radius:99px; overflow:hidden; margin:14px 0 12px}
+  .bar i{display:block; height:100%; background:var(--accent); border-radius:99px; transition:width .5s}
+  .bar.over i{background:var(--warn)}
+  .row{display:flex; justify-content:space-between; font-size:14px; padding:5px 0}
+  .row span:first-child{color:var(--sub)}
+  .row b{font-weight:700}
+  .divider{height:1px; background:var(--line); margin:10px 0}
+  .plus{color:var(--plus)}
+  .pill{display:inline-block; font-size:11.5px; font-weight:700; padding:3px 8px; border-radius:99px;
+    background:var(--accent-soft); color:var(--accent)}
+
+  .notice{background:var(--warn-soft); color:var(--warn); border-radius:16px; padding:12px 14px;
+    font-size:13.5px; line-height:1.5; margin-bottom:12px}
+
+  .tabs{display:flex; gap:6px; margin:18px 0 10px; overflow-x:auto}
+  .tab{border:0; background:var(--card); color:var(--sub); font:inherit; font-size:13.5px; font-weight:700;
+    padding:8px 14px; border-radius:99px; white-space:nowrap; cursor:pointer}
+  .tab.on{background:var(--ink); color:var(--bg)}
+
+  .day{font-size:12.5px; color:var(--sub); font-weight:700; margin:16px 4px 6px}
+  .tx{display:flex; align-items:center; gap:12px; padding:12px 14px; background:var(--card);
+    border-radius:16px; margin-bottom:6px; cursor:pointer}
+  .tx:active{transform:scale(.99)}
+  .src{width:34px; height:34px; border-radius:11px; display:grid; place-items:center; flex:none;
+    font-size:11px; font-weight:800; color:#fff}
+  .src.KB{background:var(--kb); color:#3b2a00} .src.TOSS{background:var(--toss)} .src.수동{background:var(--sub)}
+  .tx .mid{flex:1; min-width:0}
+  .tx .t{font-size:15px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .tx .s{font-size:12px; color:var(--sub); margin-top:2px}
+  .tx .amt{font-size:15px; font-weight:700; text-align:right; white-space:nowrap}
+  .tx .amt small{display:block; font-size:11px; color:var(--sub); font-weight:500}
+  .tx.dim{opacity:.5}
+  .chip{font-size:11px; font-weight:700; padding:1px 6px; border-radius:6px; margin-left:4px;
+    background:var(--bar); color:var(--sub)}
+  .chip.생활{background:var(--accent-soft); color:var(--accent)}
+  .chip.gap{background:var(--warn-soft); color:var(--warn)}
+
+  .section-title{font-size:15px; font-weight:800; margin:22px 4px 8px}
+  .empty{text-align:center; color:var(--sub); font-size:14px; padding:30px 10px}
+
+  .sheet-bg{position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; z-index:10}
+  .sheet{position:fixed; left:0; right:0; bottom:0; max-width:480px; margin:0 auto; background:var(--card);
+    border-radius:24px 24px 0 0; padding:20px 18px calc(env(safe-area-inset-bottom) + 20px);
+    transform:translateY(105%); transition:transform .25s ease, visibility .25s; z-index:11; visibility:hidden}
+  .sheet.open{transform:none; visibility:visible} .sheet-bg.open{display:block}
+  .sheet h3{margin:0 0 4px; font-size:18px}
+  .sheet p{margin:0 0 14px; color:var(--sub); font-size:13.5px; line-height:1.5}
+  .grid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+  .opt{border:1.5px solid var(--line); background:transparent; color:var(--ink); font:inherit; font-weight:700;
+    padding:12px 6px; border-radius:14px; cursor:pointer; font-size:14px}
+  .opt small{display:block; font-weight:500; font-size:11px; color:var(--sub); margin-top:2px}
+  .opt.on{border-color:var(--accent); background:var(--accent-soft); color:var(--accent)}
+  input{width:100%; font:inherit; font-size:14px; padding:12px; border-radius:12px; border:1.5px solid var(--line);
+    background:var(--bg); color:var(--ink); margin:4px 0 12px}
+  .btn{width:100%; border:0; background:var(--accent); color:#fff; font:inherit; font-weight:800; font-size:15px;
+    padding:14px; border-radius:14px; cursor:pointer}
+  .toast{position:fixed; left:50%; bottom:calc(env(safe-area-inset-bottom) + 24px); transform:translateX(-50%);
+    background:var(--ink); color:var(--bg); font-size:13.5px; padding:10px 16px; border-radius:99px;
+    opacity:0; transition:opacity .2s; pointer-events:none; z-index:20}
+  .toast.show{opacity:1}
+  .muted{color:var(--sub); font-size:12px; text-align:center; margin-top:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>만나장부<small>그날 쓸 만큼</small></h1>
+    <div style="display:flex">
+      <button class="icon-btn" id="refreshBtn" aria-label="새로고침"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
+      <button class="icon-btn" id="settingsBtn" aria-label="설정"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+    </div>
+  </header>
+  <main id="app"><div class="empty">불러오는 중…</div></main>
+</div>
+
+<div class="sheet-bg" id="sheetBg"></div>
+<div class="sheet" id="sheet"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const won = (n) => (n < 0 ? '-' : '') + Math.abs(Math.round(n)).toLocaleString('ko-KR');
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const CLASS_INFO = {
+  '생활': '생활비에 포함', '고정': '구독·통신비 등', '할부': '할부 원금',
+  '이동': '내 계좌끼리', '수입': '사례비 등', '제외': '집계에서 빼기'
+};
+const state = {
+  url: localStorage.getItem('manna.url') || '',
+  token: localStorage.getItem('manna.token') || '',
+  cycle: null, data: null, filter: '전체', loading: false
+};
+
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+async function load(cycle) {
+  if (!state.url || !state.token) { renderSetup(); return; }
+  state.loading = true; $('#refreshBtn').classList.add('spin');
+  const cacheKey = 'manna.cache.' + (cycle || 'now');
+  const early = localStorage.getItem(cacheKey);
+  if (early && !state.data) { try { state.data = JSON.parse(early); render(); } catch (e) {} }
+  try {
+    const u = new URL(state.url);
+    u.searchParams.set('token', state.token);
+    if (cycle) u.searchParams.set('cycle', cycle);
+    const res = await fetch(u.toString());
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || '불러오기 실패');
+    state.data = j.data; state.cycle = j.data.isCurrent ? null : j.data.focusKey;
+    localStorage.setItem(cacheKey, JSON.stringify(j.data));
+    render();
+  } catch (e) {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) { state.data = JSON.parse(cached); render(); toast('오프라인: 마지막 저장본을 보여줄게'); }
+    else { $('#app').innerHTML = `<div class="notice">연결이 안 돼: ${esc(e.message)}<br>설정의 주소와 토큰을 확인해줘.</div>`; }
+  } finally {
+    state.loading = false; $('#refreshBtn').classList.remove('spin');
+  }
+}
+
+function addMonths(key, n) {
+  let y = +key.slice(0, 4), m = +key.slice(5, 7) + n;
+  while (m > 12) { m -= 12; y++; } while (m < 1) { m += 12; y--; }
+  return y + '-' + String(m).padStart(2, '0');
+}
+
+function render() {
+  const d = state.data; if (!d) return;
+  const L = d.living, C = d.card, N = d.next;
+  const usedPct = Math.min(100, Math.max(0, L.net / L.budget * 100));
+  const cardPct = Math.min(100, C.expected / C.limit * 100);
+  const over = L.remaining < 0;
+
+  let h = `
+  <div class="cycle">
+    <button class="icon-btn" data-nav="-1" aria-label="이전 사이클"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <div class="mid"><b>${d.cycle.label}</b><span>${d.cycle.payLabel}${d.isCurrent ? ` · 마감까지 ${d.daysLeft}일` : ''}</span></div>
+    <button class="icon-btn" data-nav="1" aria-label="다음 사이클" ${d.isCurrent ? 'style="visibility:hidden"' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button>
+  </div>
+
+  <section class="card">
+    <div class="label"><span>생활비</span><span>예산 ${won(L.budget)}원</span></div>
+    <div class="big ${over ? 'over' : ''}">${won(Math.abs(L.remaining))}<small>원 ${over ? '초과' : '남음'}</small></div>
+    <div class="bar ${over ? 'over' : ''}"><i style="width:${over ? 100 : usedPct}%"></i></div>
+    <div class="row"><span>쓴 돈</span><b>${won(L.spent)}원</b></div>
+    <div class="row"><span>&nbsp;&nbsp;└ 카드 · 토스</span><span>${won(L.card)} · ${won(L.toss)}</span></div>
+    <div class="row"><span>들어온 돈</span><b class="plus">+${won(L.income)}원</b></div>
+  </section>`;
+
+  const P = d.plan;
+  if (P && P.income) {
+    const over = P.myRemaining < 0;
+    h += `
+  <section class="card">
+    <div class="label"><span>내 지갑 · 사례비</span><span>${d.cycle.label}</span></div>
+    <div class="big ${over ? 'over' : ''}" style="font-size:26px">${won(Math.abs(P.myRemaining))}<small>원 ${over ? '더 씀' : '남음'}</small></div>
+    <div class="row"><span>사례비</span><b class="plus">+${won(P.income)}원</b></div>
+    <div class="row"><span>사례비 고정지출</span><span>-${won(P.salaryFixedSum)}원</span></div>
+    ${(d.salaryFixed || []).map(f => `<div class="row" style="font-size:12.5px;padding:2px 0"><span>&nbsp;&nbsp;└ ${esc(f.name)}</span><span>${won(f.amount)}</span></div>`).join('')}
+    ${P.parentPays ? '' : `<div class="row"><span>카드 고정비·할부</span><span>-${won(P.cardFixed)}원</span></div>`}
+    <div class="divider"></div>
+    <div class="row"><span>생활에 쓸 수 있는 내 돈</span><b>${won(P.mine)}원</b></div>
+    <div class="row"><span>토스로 쓴 생활비</span><span>-${won(P.tossNet)}원</span></div>
+    ${over ? `<div class="notice" style="margin:10px 0 0">사례비보다 <b>${won(-P.myRemaining)}원</b> 더 썼어. 차액은 다른 통장에서 채운 돈이야.</div>`
+           : `<div class="notice" style="margin:10px 0 0;background:var(--accent-soft);color:var(--accent)">이대로면 이번 사이클에 <b>${won(P.myRemaining)}원</b>을 저축할 수 있어.</div>`}
+  </section>
+`;
+  }
+
+  if (L.gapCount > 0) h += `<div class="notice">알림 없이 찾아낸 돈 <b>${L.gapCount}건</b>이 생활비에 잡혀 있어. 아래 내역에서 주황색 표시를 눌러 확인해줘. 내 계좌끼리 옮긴 거면 <b>이동</b>, 사례비면 <b>수입</b>으로 바꾸면 돼.</div>`;
+
+  h += `
+  <section class="card">
+    <div class="label"><span>카드 결제예정 · ${d.cycle.payLabel}${P && P.parentPays ? ' · 부모님 부담' : ''}</span><span>한도 ${won(C.limit)}원</span></div>
+    <div class="big">${won(C.expected)}<small>원</small></div>
+    <div class="bar ${C.expected > C.limit ? 'over' : ''}"><i style="width:${cardPct}%"></i></div>
+    <div class="row"><span>승인된 금액</span><b>${won(C.confirmed)}원</b></div>
+    ${C.pending.map(p => `<div class="row"><span>&nbsp;&nbsp;└ 아직 안 나간 ${esc(p.name)}${p.fx ? ` ($${p.fx})` : ''}</span><span>${won(p.amount)}원</span></div>`).join('')}
+    ${C.hasBaseline ? `<div class="row"><span>&nbsp;&nbsp;└ 11/13 기준값 포함</span><span class="pill">KB Pay 확인값</span></div>` : ''}
+    ${d.kbCumulative && d.isCurrent ? `<div class="divider"></div><div class="row"><span>카드사 누적(할부 원금 포함)</span><span>${won(d.kbCumulative.cumulative)}원</span></div>` : ''}
+  </section>
+
+  <section class="card">
+    <div class="label"><span>다음 결제 미리보기 · ${N.cycle.payLabel}</span></div>
+    <div class="big" style="font-size:24px">${won(N.card.expected)}<small>원 예상</small></div>
+    <div class="row"><span>할부·승인분</span><span>${won(N.card.confirmed)}원</span></div>
+    <div class="row"><span>고정비 예정</span><span>${won(N.card.pendingSum)}원</span></div>
+    <div class="row"><span>남는 카드 여유</span><b>${won(N.card.limit - N.card.expected)}원</b></div>
+    ${N.plan && N.plan.income ? `<div class="row"><span>생활에 쓸 수 있는 내 돈(사례비)</span><b class="plus">${won(N.plan.mine)}원</b></div>` : ''}
+  </section>`;
+
+  if (d.installments.length) {
+    h += `<div class="section-title">남은 할부</div><section class="card">` +
+      d.installments.map(i => `<div class="row"><span>${esc(i.desc)}</span><span>${won(i.monthly)}원 · ${i.left}회 · ${esc(i.lastCycle)}까지</span></div>`).join('') +
+      `</section>`;
+  }
+
+  const tabs = ['전체', '생활', '고정·할부', '이동·수입·제외'];
+  h += `<div class="tabs">${tabs.map(t => `<button class="tab ${state.filter === t ? 'on' : ''}" data-filter="${t}">${t}</button>`).join('')}</div>`;
+
+  const list = d.transactions.filter(t => t.cycle === d.focusKey).filter(t => {
+    if (state.filter === '전체') return true;
+    if (state.filter === '생활') return t.cls === '생활';
+    if (state.filter === '고정·할부') return t.cls === '고정' || t.cls === '할부';
+    return t.cls === '이동' || t.cls === '수입' || t.cls === '제외';
+  });
+  if (!list.length) h += `<div class="empty">아직 내역이 없어.<br>결제 알림이 오면 자동으로 쌓여!</div>`;
+  let lastDay = '';
+  for (const t of list) {
+    const day = t.time.slice(0, 10);
+    if (day !== lastDay) {
+      const dt = new Date(day + 'T00:00:00');
+      h += `<div class="day">${dt.getMonth() + 1}월 ${dt.getDate()}일 (${'일월화수목금토'[dt.getDay()]})</div>`;
+      lastDay = day;
+    }
+    const inflow = t.dir > 0;
+    const dim = t.cls === '이동' || t.cls === '제외' || t.cls === '수입';
+    const srcName = t.source === 'KB' ? 'KB' : t.source === 'TOSS' ? '토스' : '기준';
+    const sub = [t.time.slice(11), t.type, t.months > 1 ? t.months + '개월' : '', t.currency === 'USD' && t.fx ? '$' + t.fx : '']
+      .filter(Boolean).join(' · ');
+    h += `<div class="tx ${dim ? 'dim' : ''}" data-id="${esc(t.id)}">
+      <div class="src ${esc(t.source)}">${srcName}</div>
+      <div class="mid"><div class="t">${esc(t.desc)}</div>
+        <div class="s">${esc(sub)}<span class="chip ${(t.type === '잔액차이' || t.type === '카드누락추정') && t.cls === '생활' ? 'gap' : esc(t.cls)}">${esc(t.cls)}</span></div></div>
+      <div class="amt ${inflow ? 'plus' : ''}">${inflow ? '+' : '-'}${won(t.amount)}${t.balance != null && t.source === 'TOSS' ? `<small>잔액 ${won(t.balance)}</small>` : ''}</div>
+    </div>`;
+  }
+  if (d.tossBalance && d.isCurrent) h += `<div class="muted">토스뱅크 잔액 ${won(d.tossBalance.balance)}원 · ${esc(d.tossBalance.time)} 기준</div>`;
+  h += `<div class="muted">환율 1$ = ${d.fx.usdkrw ? won(d.fx.usdkrw) : '?'}원 · 업데이트 ${esc(d.now)}</div>`;
+
+  $('#app').innerHTML = h;
+}
+
+function openSheet(html) {
+  $('#sheet').innerHTML = html; $('#sheet').classList.add('open'); $('#sheetBg').classList.add('open');
+}
+function closeSheet() { $('#sheet').classList.remove('open'); $('#sheetBg').classList.remove('open'); }
+
+function openTx(id) {
+  const t = state.data.transactions.find(x => x.id === id); if (!t) return;
+  const gapNote = t.type === '잔액차이'
+    ? '토스 잔액이 알림 없이 바뀐 만큼이야. 내 계좌끼리 옮긴 돈이면 <b>이동</b>, 사례비면 <b>수입</b>, 실제로 쓴/받은 돈이면 <b>생활</b>으로 둬.'
+    : t.type === '카드누락추정'
+    ? 'KB 문자의 누적 금액이 맞지 않아서 찾아낸 결제야. 알림을 놓친 결제일 가능성이 커. KB Pay에서 확인해보고, 이미 기록된 거면 <b>제외</b>로 바꿔줘.'
+    : `${t.time} · ${t.source === 'KB' ? 'KB국민카드' : t.source === 'TOSS' ? '토스뱅크' : '기준값'} · ${t.type}`;
+  openSheet(`<h3>${esc(t.desc)} <span style="font-weight:600">${t.dir > 0 ? '+' : '-'}${won(t.amount)}원</span></h3>
+    <p>${gapNote}</p>
+    <div class="grid">${Object.keys(CLASS_INFO).map(c =>
+      `<button class="opt ${t.cls === c ? 'on' : ''}" data-cls="${c}" data-id="${esc(t.id)}">${c}<small>${CLASS_INFO[c]}</small></button>`).join('')}</div>`);
+}
+
+async function reclass(id, cls) {
+  closeSheet();
+  const t = state.data.transactions.find(x => x.id === id); if (t) t.cls = cls; render();
+  try {
+    const res = await fetch(state.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ token: state.token, action: 'reclass', id, cls }) });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error);
+    toast(`'${cls}'(으)로 바꿨어`);
+  } catch (e) { toast('저장 실패: ' + e.message); }
+  load(state.cycle);
+}
+
+function renderSetup() {
+  $('#app').innerHTML = `<section class="card"><div class="label"><span>처음 설정</span></div>
+    <p style="font-size:14px; line-height:1.6; color:var(--sub)">구글 Apps Script를 배포하고 받은 <b>웹 앱 주소</b>와 <b>토큰</b>을 넣어주면 시작돼.</p>
+    <button class="btn" onclick="openSettings()">설정 열기</button></section>`;
+}
+
+function openSettings() {
+  openSheet(`<h3>연결 설정</h3><p>이 기기에만 저장돼.</p>
+    <label class="of">웹 앱 주소 (…/exec)</label><input id="sUrl" value="${esc(state.url)}" placeholder="https://script.google.com/macros/s/…/exec">
+    <label class="of">토큰</label><input id="sToken" value="${esc(state.token)}" placeholder="setup 로그에 나온 16자리">
+    <button class="btn" id="saveSettings">저장하고 불러오기</button>`);
+  $('#saveSettings').onclick = () => {
+    state.url = $('#sUrl').value.trim(); state.token = $('#sToken').value.trim();
+    localStorage.setItem('manna.url', state.url); localStorage.setItem('manna.token', state.token);
+    closeSheet(); load();
+  };
+}
+
+document.addEventListener('click', (e) => {
+  const nav = e.target.closest('[data-nav]');
+  if (nav && state.data) { load(addMonths(state.data.focusKey, +nav.dataset.nav)); return; }
+  const f = e.target.closest('[data-filter]');
+  if (f) { state.filter = f.dataset.filter; render(); return; }
+  const o = e.target.closest('[data-cls]');
+  if (o) { reclass(o.dataset.id, o.dataset.cls); return; }
+  const tx = e.target.closest('.tx');
+  if (tx) { openTx(tx.dataset.id); return; }
+});
+$('#sheetBg').onclick = closeSheet;
+$('#settingsBtn').onclick = openSettings;
+$('#refreshBtn').onclick = () => load(state.cycle);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && !state.loading) load(state.cycle); });
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+load();
+</script>
+</body>
+</html>
