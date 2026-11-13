@@ -108,7 +108,7 @@
     opacity:0; transition:opacity .2s; pointer-events:none; z-index:20}
   .toast.show{opacity:1}
   .muted{color:var(--sub); font-size:12px; text-align:center; margin-top:18px}
-  .card.setup{border:2px solid var(--accent)} .card.setup p{font-size:14px; line-height:1.6; color:var(--sub); margin:6px 0 12px}
+  .card.setup{border:2px solid var(--accent)} .card.setup .hint{font-size:12.5px; margin:12px 0 0; padding:10px; background:var(--bg); border-radius:10px} .card.setup p{font-size:14px; line-height:1.6; color:var(--sub); margin:6px 0 12px}
   .menu{display:flex; flex-direction:column; gap:8px; margin-bottom:10px}
   .menu button{text-align:left; border:1.5px solid var(--line); background:transparent; color:var(--ink); font:inherit; font-size:15px; font-weight:700; padding:12px 14px; border-radius:14px; cursor:pointer}
   .menu button small{display:block; font-size:12px; font-weight:500; color:var(--sub); margin-top:2px}
@@ -258,7 +258,8 @@ function render() {
     const lOn = window.Android.listenerEnabled(), bOn = window.Android.batteryOk();
     if (!lOn) h += `<section class="card setup"><div class="label"><span>① 알림 읽기 켜기</span></div>
       <p>카드·은행 알림을 읽어야 저절로 기록돼. 버튼을 누르고 <b>만나장부</b>를 켜줘. 알림 내용은 이 폰 밖으로 나가지 않아.</p>
-      <button class="btn" id="btnListener">알림 읽기 켜러 가기</button></section>`;
+      <button class="btn" id="btnListener">알림 읽기 켜러 가기</button>
+      <p class="hint">켜려고 할 때 <b>"제한된 설정"</b> 창이 뜨거나 스위치가 회색이면:<br>폰 <b>설정 → 애플리케이션 → 만나장부 → 오른쪽 위 ⋮ → 제한된 설정 허용</b>을 누른 뒤 다시 해줘.</p></section>`;
     else if (!bOn) h += `<section class="card setup"><div class="label"><span>② 잠들지 않게 하기</span></div>
       <p>폰이 배터리를 아끼려고 만나장부를 재우면 알림을 놓칠 수 있어. <b>허용</b>을 눌러줘.</p>
       <button class="btn" id="btnBattery">배터리 절전에서 빼기</button></section>`;
