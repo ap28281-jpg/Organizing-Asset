@@ -108,6 +108,20 @@
     opacity:0; transition:opacity .2s; pointer-events:none; z-index:20}
   .toast.show{opacity:1}
   .muted{color:var(--sub); font-size:12px; text-align:center; margin-top:18px}
+  .src.c-kb{background:var(--kb); color:#3b2a00} .src.c-toss{background:var(--toss)} .src.c-kakao{background:#FEE500; color:#3a1d1d}
+  .src.c-kbank{background:#1e2a6b} .src.c-naver{background:#03C75A} .src.c-etc{background:#6B7F74}
+  .fixbar{display:block; width:100%; text-align:left; border:0; font:inherit; cursor:pointer}
+  .sheet{max-height:88vh; overflow-y:auto}
+  .rawbox{white-space:pre-wrap; background:var(--bg); border-radius:12px; padding:10px 12px; font-size:13px; line-height:1.5; margin-bottom:12px; max-height:140px; overflow:auto}
+  .seg{display:grid; grid-template-columns:1fr 1fr; gap:6px; margin:4px 0 12px}
+  .seg button,.amts button{border:1.5px solid var(--line); background:transparent; color:var(--ink); font:inherit; font-size:13.5px; font-weight:700; padding:10px 6px; border-radius:12px; cursor:pointer}
+  .seg button.on{border-color:var(--accent); background:var(--accent-soft); color:var(--accent)}
+  .amts{display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 6px} .amts button{padding:6px 10px}
+  .learn{display:flex; gap:8px; align-items:center; font-size:14px; font-weight:600; margin:4px 0 10px}
+  .learn input{width:auto; margin:0}
+  .btn.ghost{background:transparent; color:var(--sub); margin-top:8px}
+  details.edit{margin-top:14px} details.edit summary{font-size:13.5px; color:var(--sub); cursor:pointer; margin-bottom:8px}
+
 </style>
 </head>
 <body>
@@ -131,9 +145,24 @@ const $ = (s) => document.querySelector(s);
 const won = (n) => (n < 0 ? '-' : '') + Math.abs(Math.round(n)).toLocaleString('ko-KR');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const CLASS_INFO = {
-  '생활': '생활비에 포함', '고정': '구독·통신비 등', '할부': '할부 원금',
-  '이동': '내 계좌끼리', '수입': '사례비 등', '제외': '집계에서 빼기'
+  '생활': '생활비에 포함', '고정': '구독·통신비·헌금 등', '할부': '할부 원금',
+  '이동': '내 계좌끼리', '수입': '월급·사례비 등', '제외': '집계에서 빼기'
 };
+const SRC = { KB: ['KB', 'kb'], TOSS: ['토스', 'toss'], '카카오뱅크': ['카뱅', 'kakao'], '카카오페이': ['페이', 'kakao'],
+  '카카오페이(알림톡)': ['페이', 'kakao'], '케이뱅크': ['K', 'kbank'], '네이버페이': ['N', 'naver'], '수동': ['기준', 'etc'] };
+const srcBadge = (s) => SRC[s] || [String(s || '?').replace(/카드|뱅크|은행|\(.*\)/g, '').slice(0, 2) || '?', 'etc'];
+
+// QR로 열었을 때: 주소 뒤 #url=…&token=… 를 읽어 자동 연결
+(function autoConnect() {
+  if (!location.hash) return;
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.get('url') && h.get('token')) {
+    localStorage.setItem('manna.url', h.get('url'));
+    localStorage.setItem('manna.token', h.get('token'));
+    history.replaceState(null, '', location.pathname);
+  }
+})();
+
 const state = {
   url: localStorage.getItem('manna.url') || '',
   token: localStorage.getItem('manna.token') || '',
@@ -142,11 +171,19 @@ const state = {
 
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
-  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2200);
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+async function api(body) {
+  const res = await fetch(state.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(Object.assign({ token: state.token }, body)) });
+  const j = await res.json();
+  if (!j.ok) throw new Error(j.error || '저장 실패');
+  return j;
 }
 
 async function load(cycle) {
-  if (!state.url || !state.token) { renderSetup(); return; }
+  if (!state.url || !state.token) { renderConnect(); return; }
   state.loading = true; $('#refreshBtn').classList.add('spin');
   const cacheKey = 'manna.cache.' + (cycle || 'now');
   const early = localStorage.getItem(cacheKey);
@@ -161,10 +198,11 @@ async function load(cycle) {
     state.data = j.data; state.cycle = j.data.isCurrent ? null : j.data.focusKey;
     localStorage.setItem(cacheKey, JSON.stringify(j.data));
     render();
+    if (!j.data.settings.설정완료 && !state.wizardShown) { state.wizardShown = true; openWizard(true); }
   } catch (e) {
     const cached = localStorage.getItem(cacheKey);
-    if (cached) { state.data = JSON.parse(cached); render(); toast('오프라인: 마지막 저장본을 보여줄게'); }
-    else { $('#app').innerHTML = `<div class="notice">연결이 안 돼: ${esc(e.message)}<br>설정의 주소와 토큰을 확인해줘.</div>`; }
+    if (cached) { state.data = JSON.parse(cached); render(); toast('오프라인이라 마지막 저장본을 보여줄게'); }
+    else { $('#app').innerHTML = `<div class="notice">연결이 안 돼: ${esc(e.message)}<br>⚙️ 설정에서 주소와 토큰을 확인해줘.</div>`; }
   } finally {
     state.loading = false; $('#refreshBtn').classList.remove('spin');
   }
@@ -178,57 +216,65 @@ function addMonths(key, n) {
 
 function render() {
   const d = state.data; if (!d) return;
-  const L = d.living, C = d.card, N = d.next;
+  const L = d.living, C = d.card, N = d.next, S = d.settings || {}, P = d.plan;
+  const incomeName = S.수입이름 || '월수입';
   const usedPct = Math.min(100, Math.max(0, L.net / L.budget * 100));
-  const cardPct = Math.min(100, C.expected / C.limit * 100);
+  const showCard = C.limit > 0 || C.expected > 0;
+  const cardPct = C.limit ? Math.min(100, C.expected / C.limit * 100) : 0;
   const over = L.remaining < 0;
+  const bank = L.bank ?? L.toss;
 
   let h = `
   <div class="cycle">
     <button class="icon-btn" data-nav="-1" aria-label="이전 사이클"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></button>
-    <div class="mid"><b>${d.cycle.label}</b><span>${d.cycle.payLabel}${d.isCurrent ? ` · 마감까지 ${d.daysLeft}일` : ''}</span></div>
+    <div class="mid"><b>${d.cycle.label}</b><span>${showCard ? d.cycle.payLabel + ' · ' : ''}${d.isCurrent ? `마감까지 ${d.daysLeft}일` : ''}</span></div>
     <button class="icon-btn" data-nav="1" aria-label="다음 사이클" ${d.isCurrent ? 'style="visibility:hidden"' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button>
-  </div>
+  </div>`;
 
+  if (d.unparsed && d.unparsed.length && d.isCurrent) {
+    h += `<button class="notice fixbar" id="openUnparsed">놓친 알림 <b>${d.unparsed.length}건</b>이 있어. 눌러서 직접 기록하면, 다음부터는 자동으로 알아볼게 →</button>`;
+  }
+
+  h += `
   <section class="card">
-    <div class="label"><span>생활비</span><span>예산 ${won(L.budget)}원</span></div>
+    <div class="label"><span>생활비</span><span>목표 ${won(L.budget)}원</span></div>
     <div class="big ${over ? 'over' : ''}">${won(Math.abs(L.remaining))}<small>원 ${over ? '초과' : '남음'}</small></div>
     <div class="bar ${over ? 'over' : ''}"><i style="width:${over ? 100 : usedPct}%"></i></div>
     <div class="row"><span>쓴 돈</span><b>${won(L.spent)}원</b></div>
-    <div class="row"><span>&nbsp;&nbsp;└ 카드 · 토스</span><span>${won(L.card)} · ${won(L.toss)}</span></div>
+    <div class="row"><span>&nbsp;&nbsp;└ 카드 · 계좌·페이</span><span>${won(L.card)} · ${won(bank)}</span></div>
     <div class="row"><span>들어온 돈</span><b class="plus">+${won(L.income)}원</b></div>
   </section>`;
 
-  const P = d.plan;
   if (P && P.income) {
-    const over = P.myRemaining < 0;
+    const o2 = P.myRemaining < 0;
     h += `
   <section class="card">
-    <div class="label"><span>내 지갑 · 사례비</span><span>${d.cycle.label}</span></div>
-    <div class="big ${over ? 'over' : ''}" style="font-size:26px">${won(Math.abs(P.myRemaining))}<small>원 ${over ? '더 씀' : '남음'}</small></div>
-    <div class="row"><span>사례비</span><b class="plus">+${won(P.income)}원</b></div>
-    <div class="row"><span>사례비 고정지출</span><span>-${won(P.salaryFixedSum)}원</span></div>
+    <div class="label"><span>내 지갑 · ${esc(incomeName)}</span><span>${d.cycle.label}</span></div>
+    <div class="big ${o2 ? 'over' : ''}" style="font-size:26px">${won(Math.abs(P.myRemaining))}<small>원 ${o2 ? '더 씀' : '남음'}</small></div>
+    <div class="row"><span>${esc(incomeName)}</span><b class="plus">+${won(P.income)}원</b></div>
+    ${P.salaryFixedSum ? `<div class="row"><span>${esc(incomeName)}에서 나가는 고정지출</span><span>-${won(P.salaryFixedSum)}원</span></div>` : ''}
     ${(d.salaryFixed || []).map(f => `<div class="row" style="font-size:12.5px;padding:2px 0"><span>&nbsp;&nbsp;└ ${esc(f.name)}</span><span>${won(f.amount)}</span></div>`).join('')}
     ${P.parentPays ? '' : `<div class="row"><span>카드 고정비·할부</span><span>-${won(P.cardFixed)}원</span></div>`}
     <div class="divider"></div>
     <div class="row"><span>생활에 쓸 수 있는 내 돈</span><b>${won(P.mine)}원</b></div>
-    <div class="row"><span>토스로 쓴 생활비</span><span>-${won(P.tossNet)}원</span></div>
-    ${over ? `<div class="notice" style="margin:10px 0 0">사례비보다 <b>${won(-P.myRemaining)}원</b> 더 썼어. 차액은 다른 통장에서 채운 돈이야.</div>`
-           : `<div class="notice" style="margin:10px 0 0;background:var(--accent-soft);color:var(--accent)">이대로면 이번 사이클에 <b>${won(P.myRemaining)}원</b>을 저축할 수 있어.</div>`}
-  </section>
-`;
+    <div class="row"><span>계좌·페이로 쓴 생활비</span><span>-${won(P.tossNet)}원</span></div>
+    ${P.parentPays ? '' : `<div class="row"><span>카드로 쓴 생활비</span><span>-${won(Math.max(L.card, 0))}원</span></div>`}
+    ${o2 ? `<div class="notice" style="margin:10px 0 0">${esc(incomeName)}보다 <b>${won(-P.myRemaining)}원</b> 더 썼어. 차액은 다른 통장에서 채운 돈이야.</div>`
+         : `<div class="notice" style="margin:10px 0 0;background:var(--accent-soft);color:var(--accent)">이대로면 이번 사이클에 <b>${won(P.myRemaining)}원</b>을 모을 수 있어.</div>`}
+  </section>`;
   }
 
-  if (L.gapCount > 0) h += `<div class="notice">알림 없이 찾아낸 돈 <b>${L.gapCount}건</b>이 생활비에 잡혀 있어. 아래 내역에서 주황색 표시를 눌러 확인해줘. 내 계좌끼리 옮긴 거면 <b>이동</b>, 사례비면 <b>수입</b>으로 바꾸면 돼.</div>`;
+  if (L.gapCount > 0) h += `<div class="notice">알림 없이 찾아낸 돈 <b>${L.gapCount}건</b>이 생활비에 잡혀 있어. 아래 내역의 주황색 표시를 눌러 확인해줘. 내 계좌끼리 옮긴 거면 <b>이동</b>, 월급·사례비면 <b>수입</b>으로 바꾸면 돼.</div>`;
 
-  h += `
+  if (showCard) {
+    h += `
   <section class="card">
-    <div class="label"><span>카드 결제예정 · ${d.cycle.payLabel}${P && P.parentPays ? ' · 부모님 부담' : ''}</span><span>한도 ${won(C.limit)}원</span></div>
+    <div class="label"><span>카드 결제예정 · ${d.cycle.payLabel}${P && P.parentPays ? ' · ' + esc(P.payer) + ' 부담' : ''}</span><span>한도 ${won(C.limit)}원</span></div>
     <div class="big">${won(C.expected)}<small>원</small></div>
-    <div class="bar ${C.expected > C.limit ? 'over' : ''}"><i style="width:${cardPct}%"></i></div>
+    <div class="bar ${C.limit && C.expected > C.limit ? 'over' : ''}"><i style="width:${cardPct}%"></i></div>
     <div class="row"><span>승인된 금액</span><b>${won(C.confirmed)}원</b></div>
     ${C.pending.map(p => `<div class="row"><span>&nbsp;&nbsp;└ 아직 안 나간 ${esc(p.name)}${p.fx ? ` ($${p.fx})` : ''}</span><span>${won(p.amount)}원</span></div>`).join('')}
-    ${C.hasBaseline ? `<div class="row"><span>&nbsp;&nbsp;└ 11/13 기준값 포함</span><span class="pill">KB Pay 확인값</span></div>` : ''}
+    ${C.hasBaseline ? `<div class="row"><span>&nbsp;&nbsp;└ 시작 기준값 포함</span><span class="pill">카드앱 확인값</span></div>` : ''}
     ${d.kbCumulative && d.isCurrent ? `<div class="divider"></div><div class="row"><span>카드사 누적(할부 원금 포함)</span><span>${won(d.kbCumulative.cumulative)}원</span></div>` : ''}
   </section>
 
@@ -237,9 +283,10 @@ function render() {
     <div class="big" style="font-size:24px">${won(N.card.expected)}<small>원 예상</small></div>
     <div class="row"><span>할부·승인분</span><span>${won(N.card.confirmed)}원</span></div>
     <div class="row"><span>고정비 예정</span><span>${won(N.card.pendingSum)}원</span></div>
-    <div class="row"><span>남는 카드 여유</span><b>${won(N.card.limit - N.card.expected)}원</b></div>
-    ${N.plan && N.plan.income ? `<div class="row"><span>생활에 쓸 수 있는 내 돈(사례비)</span><b class="plus">${won(N.plan.mine)}원</b></div>` : ''}
+    ${C.limit ? `<div class="row"><span>남는 카드 여유</span><b>${won(N.card.limit - N.card.expected)}원</b></div>` : ''}
+    ${N.plan && N.plan.income ? `<div class="row"><span>생활에 쓸 수 있는 내 돈</span><b class="plus">${won(N.plan.mine)}원</b></div>` : ''}
   </section>`;
+  }
 
   if (d.installments.length) {
     h += `<div class="section-title">남은 할부</div><section class="card">` +
@@ -267,68 +314,165 @@ function render() {
     }
     const inflow = t.dir > 0;
     const dim = t.cls === '이동' || t.cls === '제외' || t.cls === '수입';
-    const srcName = t.source === 'KB' ? 'KB' : t.source === 'TOSS' ? '토스' : '기준';
+    const [badge, color] = srcBadge(t.source);
     const sub = [t.time.slice(11), t.type, t.months > 1 ? t.months + '개월' : '', t.currency === 'USD' && t.fx ? '$' + t.fx : '']
       .filter(Boolean).join(' · ');
     h += `<div class="tx ${dim ? 'dim' : ''}" data-id="${esc(t.id)}">
-      <div class="src ${esc(t.source)}">${srcName}</div>
+      <div class="src c-${color}">${esc(badge)}</div>
       <div class="mid"><div class="t">${esc(t.desc)}</div>
         <div class="s">${esc(sub)}<span class="chip ${(t.type === '잔액차이' || t.type === '카드누락추정') && t.cls === '생활' ? 'gap' : esc(t.cls)}">${esc(t.cls)}</span></div></div>
-      <div class="amt ${inflow ? 'plus' : ''}">${inflow ? '+' : '-'}${won(t.amount)}${t.balance != null && t.source === 'TOSS' ? `<small>잔액 ${won(t.balance)}</small>` : ''}</div>
+      <div class="amt ${inflow ? 'plus' : ''}">${inflow ? '+' : '-'}${won(t.amount)}${t.balance != null && !t.card ? `<small>잔액 ${won(t.balance)}</small>` : ''}</div>
     </div>`;
   }
-  if (d.tossBalance && d.isCurrent) h += `<div class="muted">토스뱅크 잔액 ${won(d.tossBalance.balance)}원 · ${esc(d.tossBalance.time)} 기준</div>`;
+  const bals = d.balances || (d.tossBalance ? [d.tossBalance] : []);
+  if (bals.length && d.isCurrent) {
+    h += `<div class="section-title">계좌 잔액</div><section class="card">` +
+      bals.map(b => `<div class="row"><span>${esc(b.source === 'TOSS' ? '토스뱅크' : b.source)}</span><span>${won(b.balance)}원 <small style="color:var(--sub)">${esc(b.time.slice(5))}</small></span></div>`).join('') +
+      `</section>`;
+  }
   h += `<div class="muted">환율 1$ = ${d.fx.usdkrw ? won(d.fx.usdkrw) : '?'}원 · 업데이트 ${esc(d.now)}</div>`;
 
   $('#app').innerHTML = h;
+  const ub = $('#openUnparsed'); if (ub) ub.onclick = () => openUnparsed(0);
 }
 
 function openSheet(html) {
   $('#sheet').innerHTML = html; $('#sheet').classList.add('open'); $('#sheetBg').classList.add('open');
+  $('#sheet').scrollTop = 0;
 }
 function closeSheet() { $('#sheet').classList.remove('open'); $('#sheetBg').classList.remove('open'); }
 
+// ── 거래 하나: 분류 바꾸기 + 금액·이름 고치기
 function openTx(id) {
   const t = state.data.transactions.find(x => x.id === id); if (!t) return;
-  const gapNote = t.type === '잔액차이'
-    ? '토스 잔액이 알림 없이 바뀐 만큼이야. 내 계좌끼리 옮긴 돈이면 <b>이동</b>, 사례비면 <b>수입</b>, 실제로 쓴/받은 돈이면 <b>생활</b>으로 둬.'
+  const note = t.type === '잔액차이'
+    ? '잔액이 알림 없이 바뀐 만큼이야. 내 계좌끼리 옮긴 돈이면 <b>이동</b>, 월급·사례비면 <b>수입</b>, 실제로 쓴/받은 돈이면 <b>생활</b>으로 둬.'
     : t.type === '카드누락추정'
-    ? 'KB 문자의 누적 금액이 맞지 않아서 찾아낸 결제야. 알림을 놓친 결제일 가능성이 커. KB Pay에서 확인해보고, 이미 기록된 거면 <b>제외</b>로 바꿔줘.'
-    : `${t.time} · ${t.source === 'KB' ? 'KB국민카드' : t.source === 'TOSS' ? '토스뱅크' : '기준값'} · ${t.type}`;
+    ? '카드 문자의 누적 금액이 맞지 않아서 찾아낸 결제야. 카드앱에서 확인해보고, 이미 기록된 거면 <b>제외</b>로 바꿔줘.'
+    : `${esc(t.time)} · ${esc(t.source === 'TOSS' ? '토스뱅크' : t.source)} · ${esc(t.type)}`;
   openSheet(`<h3>${esc(t.desc)} <span style="font-weight:600">${t.dir > 0 ? '+' : '-'}${won(t.amount)}원</span></h3>
-    <p>${gapNote}</p>
+    <p>${note}</p>
     <div class="grid">${Object.keys(CLASS_INFO).map(c =>
-      `<button class="opt ${t.cls === c ? 'on' : ''}" data-cls="${c}" data-id="${esc(t.id)}">${c}<small>${CLASS_INFO[c]}</small></button>`).join('')}</div>`);
+      `<button class="opt ${t.cls === c ? 'on' : ''}" data-cls="${c}" data-id="${esc(t.id)}">${c}<small>${CLASS_INFO[c]}</small></button>`).join('')}</div>
+    <details class="edit"><summary>금액·이름이 틀렸으면 고치기</summary>
+      <label class="of">이름</label><input id="eDesc" value="${esc(t.desc)}">
+      <label class="of">금액(원)</label><input id="eAmt" inputmode="numeric" value="${t.amount}">
+      <button class="btn" id="eSave">고친 내용 저장</button>
+    </details>`);
+  $('#eSave').onclick = async () => {
+    try { await api({ action: 'edit', id: t.id, amount: $('#eAmt').value, desc: $('#eDesc').value }); closeSheet(); toast('고쳤어'); load(state.cycle); }
+    catch (e) { toast(e.message); }
+  };
 }
 
 async function reclass(id, cls) {
   closeSheet();
   const t = state.data.transactions.find(x => x.id === id); if (t) t.cls = cls; render();
-  try {
-    const res = await fetch(state.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ token: state.token, action: 'reclass', id, cls }) });
-    const j = await res.json();
-    if (!j.ok) throw new Error(j.error);
-    toast(`'${cls}'(으)로 바꿨어`);
-  } catch (e) { toast('저장 실패: ' + e.message); }
+  try { await api({ action: 'reclass', id, cls }); toast(`'${cls}'(으)로 바꿨어`); }
+  catch (e) { toast('저장 실패: ' + e.message); }
   load(state.cycle);
 }
 
-function renderSetup() {
-  $('#app').innerHTML = `<section class="card"><div class="label"><span>처음 설정</span></div>
-    <p style="font-size:14px; line-height:1.6; color:var(--sub)">구글 Apps Script를 배포하고 받은 <b>웹 앱 주소</b>와 <b>토큰</b>을 넣어주면 시작돼.</p>
-    <button class="btn" onclick="openSettings()">설정 열기</button></section>`;
+// ── 놓친 알림 직접 처리 + 다음부터 자동 인식
+function guessWord(u) {
+  const t = (u.title || '').trim();
+  if (t && !/^\d+$/.test(t) && t.length <= 12) return t;
+  const m = (u.text || '').replace(/\[Web발신\]/g, '').match(/[가-힣A-Za-z]{2,8}(?:카드|체크|은행|뱅크|페이)?/);
+  return m ? m[0] : '';
+}
+function openUnparsed(i) {
+  const list = state.data.unparsed || []; const u = list[i]; if (!u) { closeSheet(); return; }
+  const word = guessWord(u);
+  openSheet(`<h3>놓친 알림 ${i + 1}/${list.length}</h3>
+    <p style="margin-bottom:8px">${esc(u.time)} · ${esc(u.app)}</p>
+    <div class="rawbox">${esc((u.title ? u.title + '\n' : '') + u.text)}</div>
+    <label class="of">이 알림은?</label>
+    <div class="seg" id="fKind">
+      <button data-k="card">신용카드 결제</button><button data-k="check">체크카드·페이 결제</button>
+      <button data-k="out">계좌 출금·송금</button><button data-k="in">입금</button>
+    </div>
+    <label class="of">금액(원) — 알림 속 숫자를 눌러도 돼</label>
+    <div class="amts">${u.amounts.map(a => `<button data-a="${a}">${won(a)}</button>`).join('')}</div>
+    <input id="fAmt" inputmode="numeric" placeholder="예: 12000">
+    <label class="of">어디서 / 누구에게</label><input id="fDesc" placeholder="예: 스타벅스">
+    <label class="learn"><input type="checkbox" id="fLearn" checked> 다음부터 이런 알림은 자동으로 기록하기</label>
+    <div id="learnBox">
+      <label class="of">카드·은행 이름</label><input id="fName" value="${esc(word)}" placeholder="예: 신한체크">
+      <label class="of">알림 속에 늘 들어 있는 단어</label><input id="fWord" value="${esc(word)}" placeholder="예: 신한체크">
+    </div>
+    <button class="btn" id="fSave">기록하기</button>
+    <button class="btn ghost" id="fIgnore">돈 알림이 아니야 (무시)</button>`);
+  let kind = '';
+  $('#fKind').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; kind = b.dataset.k;
+    [...$('#fKind').children].forEach(x => x.classList.toggle('on', x === b)); };
+  $('.amts').onclick = (e) => { const b = e.target.closest('button'); if (b) $('#fAmt').value = b.dataset.a; };
+  $('#fLearn').onchange = () => { $('#learnBox').style.display = $('#fLearn').checked ? '' : 'none'; };
+  const next = () => { state.data.unparsed.splice(i, 1); render(); if (state.data.unparsed.length) openUnparsed(Math.min(i, state.data.unparsed.length - 1)); else closeSheet(); };
+  $('#fIgnore').onclick = async () => { try { await api({ action: 'fix', rawId: u.id, kind: 'ignore' }); next(); } catch (e) { toast(e.message); } };
+  $('#fSave').onclick = async () => {
+    if (!kind) { toast('어떤 알림인지 골라줘'); return; }
+    if (!$('#fAmt').value) { toast('금액을 넣어줘'); return; }
+    try {
+      await api({ action: 'fix', rawId: u.id, kind, amount: $('#fAmt').value, desc: $('#fDesc').value,
+        name: $('#fName').value || u.app, learn: $('#fLearn').checked, word: $('#fWord').value });
+      toast($('#fLearn').checked ? '기록했어. 다음부터는 자동으로 알아볼게' : '기록했어');
+      next(); load(state.cycle);
+    } catch (e) { toast(e.message); }
+  };
+}
+
+// ── 첫 설정 마법사
+function openWizard(first) {
+  const S = (state.data && state.data.settings) || {};
+  const usesCard = S.카드한도 === undefined ? true : S.카드한도 > 0;
+  openSheet(`<h3>${first ? '반가워! 몇 가지만 알려줘 👋' : '내 설정'}</h3>
+    <p>나중에 ⚙️에서 언제든 바꿀 수 있어.</p>
+    <label class="of">내 이름 (내 계좌끼리 옮긴 돈을 알아보는 데 써)</label><input id="wName" value="${esc(S.이름 || '')}" placeholder="예: 홍길동">
+    <label class="of">매달 들어오는 돈의 이름</label><input id="wIncName" value="${esc(S.수입이름 || '월수입')}" placeholder="예: 월급, 사례비, 용돈">
+    <label class="of">그 금액(원)</label><input id="wInc" inputmode="numeric" value="${S.월수입 || ''}" placeholder="예: 1000000">
+    <label class="of">한 달 생활비 목표(원) — 식비·카페·교통처럼 그때그때 쓰는 돈</label><input id="wBudget" inputmode="numeric" value="${S.생활비예산 || 400000}">
+    <label class="learn"><input type="checkbox" id="wCard" ${usesCard ? 'checked' : ''}> 신용카드를 써</label>
+    <div id="cardBox" style="${usesCard ? '' : 'display:none'}">
+      <label class="of">카드를 한 달에 이만큼까지만 쓸래(원)</label><input id="wLimit" inputmode="numeric" value="${S.카드한도 || 500000}">
+      <label class="of">카드 이용기간 시작일 — 카드앱의 "이용기간"을 봐줘 (예: 전월 19일~당월 18일이면 19, 1일~말일이면 1)</label><input id="wStart" inputmode="numeric" value="${S.사이클시작일 || 1}">
+      <label class="of">카드 결제일(매달 며칠)</label><input id="wPay" inputmode="numeric" value="${S.결제일 || 14}">
+      <label class="of">카드값은 누가 내?</label>
+      <div class="seg" id="wPayer"><button data-v="본인">내가 내</button><button data-v="가족">가족이 내줘</button></div>
+    </div>
+    <button class="btn" id="wSave">저장하고 시작하기</button>`);
+  let payer = S.카드대금부담 && S.카드대금부담 !== '본인' ? S.카드대금부담 : '본인';
+  const mark = () => [...$('#wPayer').children].forEach(x => x.classList.toggle('on', (x.dataset.v === '본인') === (payer === '본인')));
+  mark();
+  $('#wPayer').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; payer = b.dataset.v === '본인' ? '본인' : (payer !== '본인' ? payer : '가족'); mark(); };
+  $('#wCard').onchange = () => { $('#cardBox').style.display = $('#wCard').checked ? '' : 'none'; };
+  $('#wSave').onclick = async () => {
+    const card = $('#wCard').checked;
+    const settings = { 이름: $('#wName').value.trim(), 수입이름: $('#wIncName').value.trim() || '월수입', 월수입: $('#wInc').value || 0,
+      생활비예산: $('#wBudget').value || 0, 카드한도: card ? ($('#wLimit').value || 0) : 0,
+      사이클시작일: $('#wStart').value || 1, 결제일: $('#wPay').value || 14, 카드대금부담: payer };
+    try { await api({ action: 'config', settings }); closeSheet(); toast('저장했어!'); state.data = null; load(); }
+    catch (e) { toast(e.message); }
+  };
+}
+
+function renderConnect() {
+  $('#app').innerHTML = `<section class="card"><div class="label"><span>연결하기</span></div>
+    <p style="font-size:14px; line-height:1.6; color:var(--sub)">구글 시트의 <b>[만나장부] → ② 폰 연결</b>에서 나온 QR을 폰 카메라로 찍으면 자동으로 연결돼. 직접 넣으려면 아래 버튼을 눌러줘.</p>
+    <button class="btn" onclick="openSettings()">주소·토큰 직접 넣기</button></section>`;
 }
 
 function openSettings() {
-  openSheet(`<h3>연결 설정</h3><p>이 기기에만 저장돼.</p>
+  openSheet(`<h3>설정</h3>
+    ${state.data ? `<button class="btn" id="toWizard" style="margin-bottom:16px">내 수입·예산·카드 설정 바꾸기</button>` : ''}
+    <p>연결 정보 (이 기기에만 저장돼)</p>
     <label class="of">웹 앱 주소 (…/exec)</label><input id="sUrl" value="${esc(state.url)}" placeholder="https://script.google.com/macros/s/…/exec">
-    <label class="of">토큰</label><input id="sToken" value="${esc(state.token)}" placeholder="setup 로그에 나온 16자리">
+    <label class="of">토큰</label><input id="sToken" value="${esc(state.token)}" placeholder="16자리">
     <button class="btn" id="saveSettings">저장하고 불러오기</button>`);
+  const w = $('#toWizard'); if (w) w.onclick = () => openWizard(false);
   $('#saveSettings').onclick = () => {
     state.url = $('#sUrl').value.trim(); state.token = $('#sToken').value.trim();
     localStorage.setItem('manna.url', state.url); localStorage.setItem('manna.token', state.token);
-    closeSheet(); load();
+    closeSheet(); state.data = null; load();
   };
 }
 

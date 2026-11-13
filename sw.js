@@ -1,5 +1,5 @@
 // 만나장부 서비스 워커: 앱 화면만 저장해두고, 돈 데이터는 항상 새로 받아온다.
-const CACHE = 'manna-v5';
+const CACHE = 'manna-v6';
 const SHELL = ['./', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {
